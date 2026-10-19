@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bufio" // Добавляем для чтения целых строк с пробелами
 	"errors"
-	"fmt" // Добавили пакет fmt для вывода текста в терминал
+	"fmt"
+	"os" // Добавляем для работы со стандартным вводом (клавиатурой)
 	"strings"
 	"unicode/utf8"
 )
@@ -16,7 +18,7 @@ const (
 	StateCompleted  TaskState = "Completed"
 )
 
-// Result хранит результат нашей работы (количество слов и символов)
+// Result хранит результат нашей работы
 type Result struct {
 	Words      int
 	Characters int
@@ -37,7 +39,7 @@ type TaskManager interface {
 	ProcessTask(id int) error
 }
 
-// InMemoryManager хранит задачи прямо в оперативной памяти
+// InMemoryManager хранит задачи в памяти
 type InMemoryManager struct {
 	tasks  map[int]*Task
 	nextID int
@@ -98,44 +100,53 @@ func (m *InMemoryManager) ProcessTask(id int) error {
 	return nil
 }
 
-// Вот здесь мы "оживили" запуск программы!
+// Новая интерактивная функция main
 func main() {
-	fmt.Println("=== Запуск SIS1: Анализатор текста ===")
 	manager := NewInMemoryManager()
+	scanner := bufio.NewScanner(os.Stdin)
 
-	// Сценарий 1: Нормальный текст
-	fmt.Println("\n--- Сценарий 1: Успешная задача ---")
-	text := "Привет KBTU! Изучаем язык Golang."
-	fmt.Printf("Ввод: %q\n", text)
-	
-	id1, err := manager.CreateTask(text)
-	if err != nil {
-		fmt.Println("Ошибка:", err)
-	} else {
-		fmt.Printf("Задача создана! Ей присвоен ID: %d\n", id1)
-		
-		// Обрабатываем задачу
-		manager.ProcessTask(id1)
-		
-		// Достаем результат
-		task1, _ := manager.GetTask(id1)
-		fmt.Printf("СТАТУС: %s\n", task1.State)
-		fmt.Printf("РЕЗУЛЬТАТ: Слов - %d, Символов - %d\n", task1.Result.Words, task1.Result.Characters)
+	fmt.Println("=== SIS1: Анализатор текста ===")
+	fmt.Println("Введите текст для анализа (или напишите 'exit' для выхода):")
+	fmt.Print("\n> ")
+
+	// Считываем ввод пользователя строка за строкой
+	for scanner.Scan() {
+		input := scanner.Text()
+
+		// Завершаем работу, если пользователь ввёл exit
+		if strings.ToLower(strings.TrimSpace(input)) == "exit" {
+			fmt.Println("Завершение программы...")
+			break
+		}
+
+		// 1. Создаём задачу
+		id, err := manager.CreateTask(input)
+		if err != nil {
+			fmt.Printf("Ошибка создания задачи: %v\n", err)
+			fmt.Print("\n> ")
+			continue
+		}
+
+		fmt.Printf("Задача создана! ID: %d. Статус: Pending\n", id)
+
+		// 2. Обрабатываем задачу
+		err = manager.ProcessTask(id)
+		if err != nil {
+			fmt.Printf("Ошибка обработки задачи: %v\n", err)
+			fmt.Print("\n> ")
+			continue
+		}
+
+		// 3. Получаем и выводим результат
+		task, _ := manager.GetTask(id)
+		fmt.Printf("Задача %d выполнена! Статус: %s\n", task.ID, task.State)
+		fmt.Printf("Результат: Слов - %d, Символов - %d\n", task.Result.Words, task.Result.Characters)
+
+		fmt.Print("\n> ")
 	}
 
-	// Сценарий 2: Передаем пустой текст (ошибка валидации)
-	fmt.Println("\n--- Сценарий 2: Передача пустого текста ---")
-	_, err = manager.CreateTask("    ")
-	if err != nil {
-		fmt.Printf("Получена ожидаемая ошибка: %v\n", err)
+	// Финальная проверка ошибок считывания (убирает предупреждение линтера)
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("Ошибка чтения ввода: %v\n", err)
 	}
-
-	// Сценарий 3: Ищем задачу, которой не существует
-	fmt.Println("\n--- Сценарий 3: Поиск задачи с ID 999 ---")
-	_, err = manager.GetTask(999)
-	if err != nil {
-		fmt.Printf("Получена ожидаемая ошибка: %v\n", err)
-	}
-	
-	fmt.Println("\n======================================")
 }
